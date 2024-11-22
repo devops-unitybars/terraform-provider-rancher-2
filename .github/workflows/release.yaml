@@ -13,39 +13,36 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - name: build binaries
+
+      - name: Build binaries
         env:
           CROSS: 1
           VERSION: ${{ github.ref_name }}
         run: |
           make build
 
-      - name: package
+      - name: Package
         run: |
           make package-rancher
 
-      - name: retrieve GPG Credentials
-        uses: rancher-eio/read-vault-secrets@main
-        with:
-          secrets: |
-            secret/data/github/repo/${{ github.repository }}/key/app-credentials passphrase | GPG_PASSPHRASE ;
-            secret/data/github/repo/${{ github.repository }}/key/app-credentials privateKey | GPG_KEY
-
-      - name: sign shasum
+      # Import GPG key and sign SHASUM file
+      - name: Import GPG Key and Sign SHASUM
         env:
-          GPG_KEY: ${{ env.GPG_KEY }}
-          GPG_PASSPHRASE: ${{ env.GPG_PASSPHRASE }}
+          GPG_KEY: ${{ secrets.GPG_KEY }}
+          GPG_PASSPHRASE: ""
         run: |
-          echo "Importing gpg key"
-          echo -n '${{ env.GPG_KEY }}' | gpg --import --batch > /dev/null
-          echo "signing SHASUM file"
+          # Import the GPG key
+          echo "$GPG_KEY" | gpg --batch --import
+
+          # Sign the SHASUM file
           VERSION_NO_V="$(echo ${{ github.ref_name }} | tr -d 'v')"
           SHASUM_FILE="dist/artifacts/${{ github.ref_name }}/terraform-provider-rancher2_${VERSION_NO_V}_SHA256SUMS"
-          echo '${{ env.GPG_PASSPHRASE }}' | gpg --detach-sig --pinentry-mode loopback --passphrase-fd 0 --output "${SHASUM_FILE}.sig" --sign "${SHASUM_FILE}"
+          
+          echo "$GPG_PASSPHRASE" | gpg --detach-sig --pinentry-mode loopback --passphrase-fd 0 --output "${SHASUM_FILE}.sig" --sign "${SHASUM_FILE}"
 
-      - name: GH release
+      # Create GitHub release
+      - name: GH Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create ${{ github.ref_name }} --verify-tag --generate-notes ./dist/artifacts/${{ github.ref_name }}/*
-          
