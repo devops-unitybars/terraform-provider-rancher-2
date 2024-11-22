@@ -12,48 +12,40 @@ jobs:
       contents: write
       id-token: write
     steps:
-      # Checkout code from the 'windows' branch
       - uses: actions/checkout@v4
-        with:
-          ref: 'windows'  # Checkout the 'windows' branch
-
-      # Build binaries
-      - name: Build binaries
+      - name: build binaries
         env:
           CROSS: 1
           VERSION: ${{ github.ref_name }}
         run: |
-          make build
+          make build-rancher
 
-      # Package the provider
-      - name: Package
+      - name: package
         run: |
           make package-rancher
 
-      # Retrieve GPG credentials
-      - name: Retrieve GPG Credentials
+      - name: retrieve GPG Credentials
         uses: rancher-eio/read-vault-secrets@main
         with:
           secrets: |
             secret/data/github/repo/${{ github.repository }}/key/app-credentials passphrase | GPG_PASSPHRASE ;
             secret/data/github/repo/${{ github.repository }}/key/app-credentials privateKey | GPG_KEY
 
-      # Sign the SHASUM file
-      - name: Sign SHASUM
+      - name: sign shasum
         env:
           GPG_KEY: ${{ env.GPG_KEY }}
           GPG_PASSPHRASE: ${{ env.GPG_PASSPHRASE }}
         run: |
           echo "Importing gpg key"
           echo -n '${{ env.GPG_KEY }}' | gpg --import --batch > /dev/null
-          echo "Signing SHASUM file"
+          echo "signing SHASUM file"
           VERSION_NO_V="$(echo ${{ github.ref_name }} | tr -d 'v')"
           SHASUM_FILE="dist/artifacts/${{ github.ref_name }}/terraform-provider-rancher2_${VERSION_NO_V}_SHA256SUMS"
           echo '${{ env.GPG_PASSPHRASE }}' | gpg --detach-sig --pinentry-mode loopback --passphrase-fd 0 --output "${SHASUM_FILE}.sig" --sign "${SHASUM_FILE}"
 
-      # Create a GitHub release
-      - name: GH Release
+      - name: GH release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create ${{ github.ref_name }} --verify-tag --generate-notes ./dist/artifacts/${{ github.ref_name }}/*
+          
