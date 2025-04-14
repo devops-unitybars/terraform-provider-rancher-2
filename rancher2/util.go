@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"html"
 
 	ghodssyaml "github.com/ghodss/yaml"
 	gover "github.com/hashicorp/go-version"
@@ -67,14 +68,19 @@ func getKubeConfigFromObj(kubeconfig *kubeconfig.Config) (string, error) {
 	return mapInterfaceToYAML(config)
 }
 
+// Updated function to handle HTML entity decoding and other sanitizations
 func getObjFromKubeConfig(config string) (*kubeconfig.Config, error) {
 	kubeconfig := &kubeconfig.Config{}
 	if len(config) == 0 {
 		return kubeconfig, nil
 	}
+
+	// Decode all HTML entities in the config string (e.g., &#43; -> +)
+	config = decodeHTMLEntities(config)
+
 	kubeconfigMap, err := ghodssyamlToMapInterface(config)
 	if err != nil {
-		return nil, fmt.Errorf("Yaml unmarshall kube_config %v", err)
+		return nil, fmt.Errorf("Yaml unmarshall kube_config: %v", err)
 	}
 	kubeconfigJSON, err := mapInterfaceToJSON(kubeconfigMap)
 	if err != nil {
@@ -86,6 +92,12 @@ func getObjFromKubeConfig(config string) (*kubeconfig.Config, error) {
 	}
 
 	return kubeconfig, nil
+}
+
+// Utility function to decode HTML entities in a string
+func decodeHTMLEntities(input string) string {
+	// Decode common HTML entities like &#43;, &lt;, &gt;, &amp;, etc.
+	return html.UnescapeString(input)
 }
 
 func getTokenFromKubeConfig(config string) (string, error) {
