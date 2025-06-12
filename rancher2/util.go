@@ -16,7 +16,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"html"
 
 	ghodssyaml "github.com/ghodss/yaml"
 	gover "github.com/hashicorp/go-version"
@@ -68,19 +67,14 @@ func getKubeConfigFromObj(kubeconfig *kubeconfig.Config) (string, error) {
 	return mapInterfaceToYAML(config)
 }
 
-// Updated function to handle HTML entity decoding and other sanitizations
 func getObjFromKubeConfig(config string) (*kubeconfig.Config, error) {
 	kubeconfig := &kubeconfig.Config{}
 	if len(config) == 0 {
 		return kubeconfig, nil
 	}
-
-	// Decode all HTML entities in the config string (e.g., &#43; -> +)
-	config = decodeHTMLEntities(config)
-
 	kubeconfigMap, err := ghodssyamlToMapInterface(config)
 	if err != nil {
-		return nil, fmt.Errorf("Yaml unmarshall kube_config: %v", err)
+		return nil, fmt.Errorf("Yaml unmarshall kube_config %v", err)
 	}
 	kubeconfigJSON, err := mapInterfaceToJSON(kubeconfigMap)
 	if err != nil {
@@ -92,12 +86,6 @@ func getObjFromKubeConfig(config string) (*kubeconfig.Config, error) {
 	}
 
 	return kubeconfig, nil
-}
-
-// Utility function to decode HTML entities in a string
-func decodeHTMLEntities(input string) string {
-	// Decode common HTML entities like &#43;, &lt;, &gt;, &amp;, etc.
-	return html.UnescapeString(input)
 }
 
 func getTokenFromKubeConfig(config string) (string, error) {
@@ -407,6 +395,8 @@ func splitBySep(data, sep string) []string {
 	return strings.Split(data, sep)
 }
 
+// eg. "abc123.def456"(id) returns "abc123"(clusterID), "def456"(resourceID)
+// eg. "abc123"(id) returns ""(clusterID), "abc123"(resourceID)
 func splitID(id string) (clusterID, resourceID string) {
 	separator := "."
 
@@ -449,6 +439,8 @@ func splitProjectIDPart(id string) (projectID string) {
 	return ""
 }
 
+// eg. "abc123:def456"(id) would return "abc123"(clusterID),"abc123:def456"(projectID)
+// eg. "abc123"(id) would return "abc123"(clusterID),""(projectID)
 func splitProjectID(id string) (clusterID, projectID string) {
 	id = strings.TrimSuffix(id, clusterProjectIDSeparator)
 
@@ -469,27 +461,6 @@ func splitAppID(id string) (projectID, appID string, err error) {
 	}
 
 	return fields[0] + separator + fields[1], fields[1] + separator + fields[2], nil
-}
-
-func updateVersionExternalID(externalID, version string) string {
-	//Global catalog url: catalog://?catalog=demo&template=test&version=1.23.0
-	//Cluster catalog url: catalog://?catalog=c-XXXXX/test&type=clusterCatalog&template=test&version=1.23.0
-	//Project catalog url: catalog://?catalog=p-XXXXX/test&type=projectCatalog&template=test&version=1.23.0
-
-	str := strings.TrimPrefix(externalID, AppTemplateExternalIDPrefix)
-	values := strings.Split(str, "&")
-	out := AppTemplateExternalIDPrefix
-	for _, v := range values {
-		if strings.Contains(v, "version=") {
-			pair := strings.Split(v, "=")
-			if pair[0] == "version" {
-				pair[1] = version
-			}
-			v = pair[0] + "=" + pair[1]
-		}
-		out = out + "&" + v
-	}
-	return out
 }
 
 func toArrayString(in []interface{}) []string {
